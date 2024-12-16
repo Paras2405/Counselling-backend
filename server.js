@@ -8,7 +8,10 @@ const cors= require('cors')
 
 const app=express();
 app.use(express.json())
-app.use(cors())
+app.use(cors({
+  origin: 'https://counselling-frontend-nkm8..vercel.app',  // Replace with your frontend's URL
+  methods: ['GET', 'POST'],
+}))
   //app.options('*', cors()); 
 
 
