@@ -11,15 +11,15 @@ unique:true
 },
 password:{
 type:String,
-required:true
+
 },
 mobileno:{
-    type:Number,
-    required:true
+    type:String,
+   
     },
 role:{
         type:String,
-        required:true
+      
      },
 
 

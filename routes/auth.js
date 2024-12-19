@@ -7,6 +7,8 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const JWT_SECRET =process.env.JWT_SECRET
 const fetchuser = require('../middleware/fetchuser');
+const {OAuth2Client}= require('google-auth-library')
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Create a user using POST "/api/auth/"
 router.post('/createuser', [
@@ -41,7 +43,8 @@ router.post('/createuser', [
         });
 
         const data = {
-            id: user.id
+            id: user.id,
+            name: user.name  
         };
         const jwtData = jwt.sign(data, JWT_SECRET);
         success=true
@@ -78,7 +81,9 @@ router.post('/login', [
         }
 
         const data = {
-            id: user.id
+            id: user.id,
+
+            name: user.name  
         };
         const  authtoken = jwt.sign(data, JWT_SECRET);
         success=true
@@ -95,11 +100,47 @@ router.post('/getuser', fetchuser, async (req, res) => {
     try {
         const userId = req.user.id;
         const user = await User.findById(userId).select("-password");
-        res.json(user);
+        res.json({ success: true, name: user.name, email: user.email, mobileno: user.mobileno, role: user.role });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+router.post('/google-login',async(req,res)=>{
+    try{
+const {token}=req.body
+const ticket = await client.verifyIdToken({
+    idToken:token,
+    audience:process.env.GOOGLE_CLIENT_ID
+})
+const payload = ticket.getPayload();
+const userId = payload.sub;
+    
+      // Check if the user exists in your database
+      let user = await User.findOne({ email: payload.email });
+      if (!user) {
+        // If no user exists, create a new one
+        user = await User.create({
+          googleId: userId,
+          email: payload.email,
+          name: payload.name,
+          mobileno: 'N/A', // Provide defaults for required fields
+          password: 'N/A', // Provide defaults for required fields
+          role: 'user',    // Set default role
+        });
+      } else if (!user.googleId) {
+        // If the user exists but doesn't have a Google ID, update the record
+        user.googleId = userId;
+        await user.save();
+      }
+     // Generate your own JWT token
+     const authtoken = jwt.sign({ id: user.id ,  name: user.name  }, process.env.JWT_SECRET, { expiresIn: '1h' });
+ 
+     res.json({ success: true, authtoken });
+   } catch (error) {
+     console.error('Error verifying Google token:', error);
+     res.status(401).json({ success: false, message: 'Invalid Google token' });
+   }
+})
 
 module.exports = router;
