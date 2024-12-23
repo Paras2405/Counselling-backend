@@ -1,33 +1,42 @@
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+dotenv.config();
 
-require('dotenv').config();
-const mongoose=require('mongoose')
+const MongoUri = process.env.MONGO_URI;
+const port = process.env.PORT || 5000;
 
-//define mongoDB connection url
-//const MongoURI="mongodb+srv://paraskadam0605:uz9S18xVFTAIYjQj@cluster0.kfvv7.mongodb.net/"
-//const MongoURI=process.env.MONGO_URI||"mongodb+srv://paraskadam0605:uz9S18xVFTAIYjQj@cluster0.kfvv7.mongodb.net/"
-//const mongoURL=process.env.DBURL_LOCAL
-//const mongoURL=process.env.DBURL;
+const connectDB = async () => {
+  try {
+    // Attempt to connect to MongoDB
+    await mongoose.connect(MongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout in case of connection issues
+    });
 
-const MongoUri=process.env.MONGO_URI
-const port=process.env.PORT 
+    console.log(`MongoDB connected successfully at port ${port}`);
 
+    // Attach event listeners for connection events
+    mongoose.connection.on('connected', () => {
+      console.log('Connected to the MongoDB server');
+    });
 
-mongoose.connect( MongoUri, {
-    serverSelectionTimeoutMS: 30000
-  // You can remove useNewUrlParser and useUnifiedTopology as they are no longer needed.
-})
-.then(() => console.log(`MongoDB connected at port ${port}`))
-.catch(err => console.log('MongoDB connection error', err));
+    mongoose.connection.on('error', (err) => {
+      console.log('MongoDB connection error', err);
+    });
 
-const db=mongoose.connection;
-//db=>it is used to handle events and interact with the database
-db.on('connected',()=>{
-    console.log('Connected to the MongoDB server');
-})
-db.on('error',(err)=>{
-    console.log('MongoDB connection error',err);
-})
-db.on('disconnected',()=>{
-    console.log('MongoDB disconnected');
-})
-module.exports=db;//export db connection
+    mongoose.connection.on('disconnected', () => {
+      console.log('MongoDB disconnected');
+    });
+
+  } catch (err) {
+    // Catch and log errors if the connection fails
+    console.error('MongoDB connection error', err);
+    process.exit(1); // Exit the process if we can't connect
+  }
+};
+
+connectDB();
+
+// Export the db connection for use in other parts of the application
+export default mongoose.connection;

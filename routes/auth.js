@@ -1,24 +1,27 @@
-require('dotenv').config()
-const express = require('express');
-const router = express.Router();
-const User = require('../models/User');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
-const JWT_SECRET =process.env.JWT_SECRET
-const fetchuser = require('../middleware/fetchuser');
-const {OAuth2Client}= require('google-auth-library')
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+import dotenv from 'dotenv'; // ES module import
+dotenv.config();
+import express from 'express'; // ES module import
+import { body, validationResult } from 'express-validator'; // ES module import
+import bcrypt from 'bcryptjs'; // ES module import
+import jwt from 'jsonwebtoken'; // ES module import
+import User from '../models/User.js'; // ES module import (adjusted for ES modules)
+import fetchuser from '../middleware/fetchuser.js'; // ES module import (adjusted for ES modules)
+import { OAuth2Client } from 'google-auth-library'; // ES module import
+import generateVideoSDKToken from '../controllers/videoController.js';
 
-// Create a user using POST "/api/auth/"
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const router = express.Router();
+
+// Create a user using POST "/api/auth/createuser"
 router.post('/createuser', [
     body('name', 'Enter a valid name').isLength({ min: 3 }),
     body('email', 'Enter correct email address').isEmail(),
     body('password', 'Password must be at least 5 characters').isLength({ min: 5 }),
     body('mobileno', 'Mobile Number is of 10 characters').isLength({ min: 10 }),
-
 ], async (req, res) => {
-    let success=false
+    let success = false;
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -27,7 +30,7 @@ router.post('/createuser', [
     try {
         let user = await User.findOne({ email: req.body.email });
         if (user) {
-            return res.status(400).json({ success:false,error: 'User already exists' });
+            return res.status(400).json({ success: false, error: 'User already exists' });
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -37,18 +40,17 @@ router.post('/createuser', [
             name: req.body.name,
             email: req.body.email,
             password: secPass,
-            mobileno:req.body.mobileno,
-            role:req.body.role
-
+            mobileno: req.body.mobileno,
+            role: req.body.role
         });
 
         const data = {
             id: user.id,
-            name: user.name  
+            name: user.name
         };
         const jwtData = jwt.sign(data, JWT_SECRET);
-        success=true
-        res.json({success, authtoken: jwtData });
+        success = true;
+        res.json({ success, authtoken: jwtData });
 
     } catch (err) {
         console.error(err);
@@ -61,7 +63,7 @@ router.post('/login', [
     body('email', 'Enter valid email').isEmail(),
     body('password', 'Password cannot be blank').exists()
 ], async (req, res) => {
-    let success=false
+    let success = false;
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -70,24 +72,23 @@ router.post('/login', [
     try {
         let user = await User.findOne({ email: req.body.email });
         if (!user) {
-            success=false
-            return res.status(400).json({ success,message: 'User does not exist' });
+            success = false;
+            return res.status(400).json({ success, message: 'User does not exist' });
         }
 
         const passwordCompare = await bcrypt.compare(req.body.password, user.password);
         if (!passwordCompare) {
-            success=false
-            return res.status(400).json({success,error: 'Password of the user is incorrect' });
+            success = false;
+            return res.status(400).json({ success, error: 'Password of the user is incorrect' });
         }
 
         const data = {
             id: user.id,
-
-            name: user.name  
+            name: user.name
         };
-        const  authtoken = jwt.sign(data, JWT_SECRET);
-        success=true
-        res.json({success,  authtoken});
+        const authtoken = jwt.sign(data, JWT_SECRET);
+        success = true;
+        res.json({ success, authtoken });
 
     } catch (err) {
         console.error(err);
@@ -106,41 +107,53 @@ router.post('/getuser', fetchuser, async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
-router.post('/google-login',async(req,res)=>{
-    try{
-const {token}=req.body
-const ticket = await client.verifyIdToken({
-    idToken:token,
-    audience:process.env.GOOGLE_CLIENT_ID
-})
-const payload = ticket.getPayload();
-const userId = payload.sub;
-    
-      // Check if the user exists in your database
-      let user = await User.findOne({ email: payload.email });
-      if (!user) {
-        // If no user exists, create a new one
-        user = await User.create({
-          googleId: userId,
-          email: payload.email,
-          name: payload.name,
-          mobileno: 'N/A', // Provide defaults for required fields
-          password: 'N/A', // Provide defaults for required fields
-          role: 'user',    // Set default role
-        });
-      } else if (!user.googleId) {
-        // If the user exists but doesn't have a Google ID, update the record
-        user.googleId = userId;
-        await user.save();
-      }
-     // Generate your own JWT token
-     const authtoken = jwt.sign({ id: user.id ,  name: user.name  }, process.env.JWT_SECRET, { expiresIn: '1h' });
- 
-     res.json({ success: true, authtoken });
-   } catch (error) {
-     console.error('Error verifying Google token:', error);
-     res.status(401).json({ success: false, message: 'Invalid Google token' });
-   }
-})
 
-module.exports = router;
+// Google login using POST "/api/auth/google-login"
+router.post('/google-login', async (req, res) => {
+    try {
+        const { token } = req.body;
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+        const payload = ticket.getPayload();
+        const userId = payload.sub;
+
+        // Check if the user exists in your database
+        let user = await User.findOne({ email: payload.email });
+        if (!user) {
+            // If no user exists, create a new one
+            user = await User.create({
+                googleId: userId,
+                email: payload.email,
+                name: payload.name,
+                mobileno: 'N/A', // Provide defaults for required fields
+                password: 'N/A', // Provide defaults for required fields
+                role: 'user',    // Set default role
+            });
+        } else if (!user.googleId) {
+            // If the user exists but doesn't have a Google ID, update the record
+            user.googleId = userId;
+            await user.save();
+        }
+        
+        // Generate your own JWT token
+        const authtoken = jwt.sign({ id: user.id, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        res.json({ success: true, authtoken });
+
+    } catch (error) {
+        console.error('Error verifying Google token:', error);
+        res.status(401).json({ success: false, message: 'Invalid Google token' });
+    }
+});
+router.post('/getVideoSDKToken', (req, res) => {
+    try {
+        const videoSDKToken = generateVideoSDKToken();
+        res.json({videoSDKToken });
+    } catch (err) {
+        console.error('Error generating VideoSDK token:', err);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+export default router; // ES module export
