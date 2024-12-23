@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken'; // ES module import
 import User from '../models/User.js'; // ES module import (adjusted for ES modules)
 import fetchuser from '../middleware/fetchuser.js'; // ES module import (adjusted for ES modules)
 import { OAuth2Client } from 'google-auth-library'; // ES module import
-import generateVideoSDKToken from '../controllers/videoController.js';
+
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -146,14 +146,6 @@ router.post('/google-login', async (req, res) => {
         res.status(401).json({ success: false, message: 'Invalid Google token' });
     }
 });
-router.post('/getVideoSDKToken', (req, res) => {
-    try {
-        const videoSDKToken = generateVideoSDKToken();
-        res.json({videoSDKToken });
-    } catch (err) {
-        console.error('Error generating VideoSDK token:', err);
-        res.status(500).json({ success: false, message: 'Internal server error' });
-    }
-});
+
 
 export default router; // ES module export
